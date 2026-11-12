@@ -1,0 +1,47 @@
+/* cohortltv design tokens — 咖啡店会员卡与烘焙曲线
+   奶油底 + 咖啡棕 + 烘豆色阶 + 方格纸 + 打卡章。
+   所有具体颜色只出现在本文件；业务样式一律引用变量。 */
+:root {
+  /* 纸面 */
+  --cream: oklch(95.4% 0.026 84);
+  --cream-2: oklch(97.8% 0.014 87);
+  --cream-3: oklch(92.4% 0.034 80);
+  --cream-4: oklch(89% 0.04 78);
+  --grid: oklch(87.6% 0.03 76);
+
+  /* 墨与咖啡 */
+  --espresso: oklch(26.5% 0.04 52);
+  --coffee: oklch(38% 0.055 50);
+  --coffee-2: oklch(48% 0.05 52);
+  --coffee-3: oklch(60% 0.045 56);
+  --coffee-4: oklch(72% 0.04 62);
+
+  /* 烘豆色阶（浅 → 深），热力格与图例共用 */
+  --roast-0: oklch(91% 0.045 84);
+  --roast-1: oklch(84.5% 0.062 80);
+  --roast-2: oklch(76% 0.078 74);
+  --roast-3: oklch(66% 0.088 68);
+  --roast-4: oklch(55% 0.092 62);
+  --roast-5: oklch(44% 0.078 56);
+  --roast-6: oklch(33.5% 0.058 52);
+
+  /* 强调 */
+  --crema: oklch(80% 0.082 74);
+  --gold: oklch(72% 0.09 85);
+  --brick: oklch(52% 0.14 30);
+  --brick-soft: oklch(92% 0.045 30);
+  --sage: oklch(52% 0.06 150);
+  --sage-soft: oklch(92% 0.03 150);
+
+  --rule: oklch(72% 0.038 68);
+  --rule-soft: oklch(84% 0.028 74);
+
+  /* 字体：衬线中文 + 等宽数字 */
+  --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
+  --mono: 'IBM Plex Mono', 'SFMono-Regular', ui-monospace, Menlo, monospace;
+
+  --rail: 238px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --hair: 1px solid var(--rule-soft);
+  --double: 3px double var(--rule);
+}
