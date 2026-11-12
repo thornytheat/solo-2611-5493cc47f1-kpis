@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     rate_limit_default_per_minute: int = 240
     rate_limit_ltv_per_minute: int = 20
     rate_limit_rebuild_per_minute: int = 6
+    rate_limit_import_per_minute: int = 10
 
     # 观察口径：快照月（含）为止，M0 = 首单月
     snapshot_month: str = "2026-11"

@@ -26,6 +26,7 @@ export const useCohortStore = defineStore('cohort', {
   getters: {
     stats: (state) => state.matrix?.stats ?? null,
     snapshot: (state) => state.matrix?.snapshot_month ?? '',
+    dataVersionSeq: (state): number | null => state.matrix?.data_version_seq ?? null,
     hasData: (state): boolean => Boolean(state.matrix && state.matrix.cohorts.length),
   },
   actions: {

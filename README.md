@@ -46,12 +46,17 @@ ARPU 留存拿去做加权最小二乘拿到 λ 与 R²，再折成 12 个月预
 
 ## 2. 主要功能
 
-1. **留存矩阵**（算法 1）：12 个首单月同期群 × M0..M12 共 156 格，热力上色用烘豆色阶；右删失格斜纹标记、不参与拟合；列合计留存、低样本标记、Celery 异步重建。
-2. **同期群详情**：人数留存曲线（SVG 自绘）、订单金额分布直方图、渠道构成与营收拆分、M6 台阶业务解释。
-3. **LTV 测算**（算法 2）：观察期 / 毛利率 / 渠道 CAC 可配；后端网格搜索 λ∈[0.02,0.60]、闭式解 a、加权 R²；输出历史 LTV、预测 12 月 LTV、渠道回本表与敏感性表（λ ±0.03、CAC ×0.8/1.0/1.2）。
-4. **复核与发布**：分析师出草稿，负责人发布；发布后渠道页与导出口径冻结。
-5. **渠道对比与导出**：回本周期排行、低样本剔除说明、CSV（4 行）与 MD 说明下载。
-6. **横切**：JWT + 三角色 RBAC、审计日志（登录/重建/测算/发布/导出/越权）、Redis 滑动窗口限流、全局错误处理。
+1. **订单导入与版本化切换**：会员订单补录/更正走整批导入（`POST /api/orders/import`）。同一订单号重复导入不新增，
+   按事实字段判定更正；晚到的旧批次（声明序号 ≤ 当前数据版本）拒绝，新校正不被覆盖。整批校验通过后，
+   订单写入新版本、留存矩阵/渠道回本/导出口径在**同一事务**一起切换；任一错误整批回滚，页面继续展示上一版。
+2. **留存矩阵**（算法 1）：12 个首单月同期群 × M0..M12 共 156 格，热力上色用烘豆色阶；右删失格斜纹标记、不参与拟合；列合计留存、低样本标记、Celery 异步重建。矩阵格子挂数据版本，旧版本格子保留可追溯。
+3. **同期群详情**：人数留存曲线（SVG 自绘）、订单金额分布直方图、渠道构成与营收拆分、M6 台阶业务解释。
+4. **LTV 测算**（算法 2）：观察期 / 毛利率 / 渠道 CAC 可配；后端网格搜索 λ∈[0.02,0.60]、闭式解 a、加权 R²；输出历史 LTV、预测 12 月 LTV、渠道回本表与敏感性表（λ ±0.03、CAC ×0.8/1.0/1.2）。
+5. **复核、过期与版本血缘**：分析师出草稿，负责人发布；报告快照化保存 `source_data_seq`，源数据更新后旧报告
+   自动判定过期（`stale_draft/stale_published`），重算生成同血缘 `v(n+1)` 新版本，旧版本及其当时导出仍可查看；
+   过期报告禁止发布，发布新版本时同血缘旧 published 转 `superseded`，渠道页与导出口径随之切换。
+6. **渠道对比与导出**：回本周期排行、低样本剔除说明、CSV（4 行）与 MD 说明下载；导出绑定具体报告版本（文件名带版本号与数据序号），冻结口径不被后续数据更新改写。
+7. **横切**：JWT + 三角色 RBAC、审计日志（登录/导入/重建/测算/重算/发布/导出/越权）、Redis 滑动窗口限流、全局错误处理。
 
 ## 3. 快速启动
 
@@ -71,7 +76,8 @@ docker compose ps             # 等 5/5 healthy
 | `analyst@cohortltv.io` | 增长分析师（重建 / 测算 / 导出） |
 | `viewer@cohortltv.io` | 渠道与门店只读（`channel_scope=store`） |
 
-seed 幂等（自然键：`users.email` / `cohorts.month` / `member_orders.order_no` / `ltv_reports.name`），
+seed 幂等（自然键：`users.email` / `cohorts.month` / `data_versions.seq` /
+`(member_orders.version_id, member_orders.order_no)` / `ltv_reports(lineage_id, version_no)`），
 `SEED_DEMO=true` 时容器启动自动跑一次，也可以手动：
 
 ```bash
@@ -104,15 +110,17 @@ gb-584/
 │   ├── scripts/
 │   │   ├── bootstrap_db.py     # 建 schema + create_all
 │   │   ├── fixtures.py         # 12 群 / 24,000 单的确定性生成器
-│   │   └── seed_demo.py        # 幂等 seed + SEED_SUMMARY
+│   │   └── seed_demo.py        # 幂等 seed + SEED_SUMMARY（含基线数据版本 v1）
 │   └── src/
 │       ├── config/             # settings / database / celery_app / app
 │       ├── constants/          # enums / roles / channels / error_codes / limits / templates
-│       ├── models/             # cohort / member_order / retention_cell / ltv_report / audit_log / user
-│       ├── schemas/            # auth / cohort / ltv / channel / audit / common
-│       ├── services/           # decay_fit / retention / cohort / ltv / channel / export / auth / audit
-│       ├── controllers/        # 参数编排 + 审计
-│       ├── routes/             # /api 路由（健康、认证、矩阵、测算、渠道、导出、审计）
+│       ├── models/             # data_version / import_batch / cohort / member_order /
+│       │                       #   retention_cell / ltv_report / audit_log / user
+│       ├── schemas/            # auth / cohort / ltv / channel / audit / common / import
+│       ├── services/           # import_core / import_service / version_service / review_core /
+│       │                       #   decay_fit / retention / cohort / ltv / channel / export / auth / audit
+│       ├── controllers/        # 参数编排 + 审计（含 import_controller）
+│       ├── routes/             # /api 路由（健康、认证、订单导入、矩阵、测算、渠道、导出、审计）
 │       ├── middlewares/        # auth / rbac / rate_limit / audit_logger / security_headers / error_handler
 │       └── utils/              # jwt / errors / logger / redis_client / months / numbers
 ├── worker/
@@ -130,7 +138,7 @@ gb-584/
         ├── hooks/              # useAsync / useLtvForm
         ├── utils/              # request / format / curve
         ├── router/             # index / guards
-        ├── pages/              # Login / Matrix / CohortDetail / Ltv / Channels
+        ├── pages/              # Login / Matrix / Import / CohortDetail / Ltv / Channels
         └── styles/             # tokens.css / base.css
 ```
 
@@ -145,7 +153,8 @@ gb-584/
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `cohortltv` / `cohortltv` / `cohortltv_pw_2026` | 库与账号 |
 | `JWT_SECRET` | 演示值 | 生产必须替换 |
 | `REDIS_URL` | `redis://redis:6379/0` | Celery broker + 限流 + 心跳 |
-| `SEED_DEMO` | `true` | 启动时跑一次幂等 seed |
+| `SEED_DEMO` | `true` | 启动时跑一次幂等 seed（含基线数据版本 v1） |
+| `RATE_LIMIT_IMPORT_PER_MINUTE` | `10` | 订单整批导入的每分钟限流（重事务，配额保守） |
 
 后端还有一组口径参数默认值（`src/config/settings.py`）：`SNAPSHOT_MONTH=2026-11`、`MATRIX_MONTHS=13`、
 `FIT_LAMBDA_MIN/MAX=0.02/0.60`、`GROSS_MARGIN_RATE=0.50`、`LOW_SAMPLE_THRESHOLD=30`。
@@ -180,6 +189,38 @@ gb-584/
 - 群或「群×渠道」样本 < 30 → `low_sample`，不进入渠道排行；
 - 无 scipy/sklearn 依赖：13 个月列 × 581 个候选 λ，纯 Python 手写。
 
+### 8.1 数据版本、导入幂等与报告血缘（补录/更正场景）
+
+**数据版本（`data_versions`）**：每次整批导入成功产生一个 `seq` 单调递增的新版本，是「一起切换」的边界。
+订单（`member_orders`）按版本组织，唯一约束是 `(version_id, order_no)` 而非单列 `order_no`；
+留存格（`retention_cells`）带 `version_id`，旧版本订单与格子整体保留，支撑审计与回看。
+
+**导入批次（`import_batches`）状态机**：
+
+| 状态 | 含义 | 订单/矩阵/版本 |
+| --- | --- | --- |
+| `validated` | dry-run 整批校验通过 | 零写入（批次号加 `#dryrun-` 后缀，不占正式命名空间） |
+| `applied` | 校验通过并完成切换 | 新版本 + 同事务重建矩阵 |
+| `failed` | 字段/批内重复等校验失败 | 全部不动，仅留痕与错误明细 |
+| `rejected` | 批次号重复 或 晚到旧批次（`source_seq ≤ 当前 seq`） | 全部不动 |
+
+切换事务顺序（`import_service._apply`，任一步抛错整体回滚）：
+`SELECT ... FOR UPDATE` 锁住当前版本行（并发导入在此排队，晚到护栏不被并发绕过）→ 建批次 → 建 DataVersion
+→ 复制当前版本全量订单并叠加 insert/update（同号不新增）→ 重算同期群规模
+→ `rebuild_matrix(commit=False)` 同事务重建矩阵 → 回填版本统计 → 标记旧报告过期 → 单次 `commit`。
+
+**报告血缘（`ltv_reports`）**：`lineage_id` 标识同名复核链，`version_no` 从 1 递增，`supersedes_id` 串起追溯链，
+`source_data_seq` 记录测算依据。复核状态（`ReviewState`，由 status × 数据新旧派生，不改写旧报告快照）：
+
+| review_state | 含义 |
+| --- | --- |
+| `draft` / `published` | 基于当前数据的草稿 / 已发布冻结口径 |
+| `stale_draft` / `stale_published` | 源数据已更新，草稿待重算 / 旧发布口径等待新版本接管 |
+| `superseded` | 同血缘新版本已发布，本版本被替代但结果与导出仍可查看 |
+
+发布门禁（`review_core.ensure_publishable`）：重复发布、已替代、数据过期一律拒绝，必须先重算；
+新版本发布的同一事务内，同血缘旧 published 转 `superseded`。
+
 ## 9. 共享枚举出现位置
 
 **枚举 A：渠道 `Channel`（private / paid_feed / store / partner / all）**
@@ -191,14 +232,16 @@ gb-584/
   `frontend/src/components/business/{RetentionHeatTable,PaybackBars}.vue`、
   `frontend/src/pages/{CohortDetail,Channels}.vue`、`frontend/src/components/common/AppShell.vue`
 
-**枚举 B：留存格状态 / 报告状态 / 任务状态 / 衰减模型
-（`CellState`、`ReportStatus`、`JobStatus`、`DecayModel`）**
+**枚举 B：留存格状态 / 报告状态 / 复核状态 / 导入批次状态 / 任务状态 / 衰减模型
+（`CellState`、`ReportStatus`、`ReviewState`、`ImportBatchStatus`、`JobStatus`、`DecayModel`）**
 
 - 后端：`backend/src/constants/enums.py`、`backend/src/constants/error_codes.py`（状态相关的错误码）、
-  `backend/src/constants/templates.py`（动作名与口径文案）、`backend/src/models/{retention_cell,ltv_report}.py`、
-  `backend/src/services/{retention,ltv,cohort}_service.py`、`backend/src/controllers/cohort_controller.py`
+  `backend/src/constants/templates.py`（动作名与口径文案）、`backend/src/models/{retention_cell,ltv_report,import_batch}.py`、
+  `backend/src/services/{retention,ltv,cohort,import,version}_service.py`、`backend/src/services/review_core.py`、
+  `backend/src/controllers/{cohort,ltv,import}_controller.py`
 - 前端：`frontend/src/constants/enums.ts`、`frontend/src/constants/messages.ts`、
-  `frontend/src/stores/{cohortStore,ltvStore}.ts`、`frontend/src/pages/{MatrixPage,LtvPage}.vue`、
+  `frontend/src/stores/{cohortStore,ltvStore}.ts`、
+  `frontend/src/pages/{MatrixPage,LtvPage,ImportPage,ChannelsPage}.vue`、
   `frontend/src/components/business/RetentionHeatTable.vue`
 
 **枚举 C：角色 `admin / analyst / viewer`**

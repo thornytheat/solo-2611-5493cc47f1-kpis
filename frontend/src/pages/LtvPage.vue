@@ -6,15 +6,25 @@
       subtitle="配置口径 → 运行测算 → 复核并发布。λ 由后端在 [0.02, 0.60] 上网格搜索，前端只展示结果。"
     >
       <template #actions>
-        <span v-if="ltv.current" class="tag" :class="ltv.isPublished ? 'tag--ok' : 'tag--warn'">
-          {{ REPORT_STATUS_LABELS[ltv.current.status] }}
+        <span v-if="ltv.current" class="tag" :class="reviewTagClass">
+          {{ REVIEW_STATE_LABELS[ltv.reviewState] ?? REPORT_STATUS_LABELS[ltv.current.status] }}
         </span>
         <button
           class="btn btn--quiet"
           type="button"
-          :disabled="!canPublish || !ltv.current || ltv.isPublished || ltv.publishing"
+          :disabled="!canRecompute || !ltv.current || ltv.recomputing || !ltv.isStale"
+          data-test="recompute"
+          :title="ltv.isStale ? '按当前数据版本重算，生成同血缘新版本（旧版本保留）' : '当前版本已基于最新数据，无需重算'"
+          @click="recompute"
+        >
+          {{ ltv.recomputing ? '重算中…' : '重算新版本' }}
+        </button>
+        <button
+          class="btn btn--quiet"
+          type="button"
+          :disabled="!canPublish || !ltv.current || ltv.isPublished || ltv.publishing || ltv.isStale"
           data-test="publish"
-          :title="canPublish ? '发布后渠道页与导出口径冻结' : '仅增长负责人可发布'"
+          :title="publishTitle"
           @click="publish"
         >
           {{ ltv.publishing ? '发布中…' : '发布报告' }}
@@ -69,14 +79,36 @@
       </form>
 
       <div class="stack grow">
+        <section v-if="ltv.current && ltv.isStale" class="stale-banner" data-test="stale-banner">
+          <div>
+            <div class="eyebrow">复核状态 · 数据已更新</div>
+            <p class="stale-banner__text">
+              本报告基于源数据 v{{ ltv.current.source_data_seq }}，当前已到
+              v{{ ltv.current.current_data_seq }}。旧结果已过期但仍可查看，
+              重算生成同血缘新版本并发布后，渠道页与导出口径才会切换。
+            </p>
+          </div>
+          <button
+            class="btn btn--solid"
+            type="button"
+            :disabled="!canRecompute || ltv.recomputing"
+            @click="recompute"
+          >
+            {{ ltv.recomputing ? '重算中…' : '立即重算' }}
+          </button>
+        </section>
+
         <template v-if="results">
           <section class="receipt">
             <div class="receipt__head">
               <div>
-                <div class="eyebrow">测算结果 · {{ results.snapshot_month }}</div>
+                <div class="eyebrow">
+                  测算结果 · {{ results.snapshot_month }} · 血缘 v{{ ltv.current?.version_no }}
+                  <span class="receipt__seq mono">（数据 v{{ ltv.current?.source_data_seq }}）</span>
+                </div>
                 <div class="receipt__name serif">{{ ltv.current?.name }}</div>
               </div>
-              <StampSeal :label="ltv.isPublished ? '已发布' : '待复核'" :tone="ltv.isPublished ? 'ok' : 'warn'" size="md" />
+              <StampSeal :label="stampLabel" :tone="stampTone" size="md" />
             </div>
 
             <div class="receipt__grid">
@@ -165,24 +197,28 @@
 
         <section class="panel panel--tight" v-if="ltv.reports.length">
           <div class="spread">
-            <div class="eyebrow">报告清单</div>
-            <span class="label">{{ ltv.reports.length }} 份</span>
+            <div class="eyebrow">报告版本（同血缘可追溯，旧版本与导出仍可查看）</div>
+            <span class="label">{{ ltv.reports.length }} 个版本</span>
           </div>
           <ul class="reports">
             <li v-for="report in ltv.reports" :key="report.id">
               <button type="button" class="report" :class="{ 'is-active': report.id === ltv.current?.id }" @click="open(report.id)">
-                <span class="report__name">{{ report.name }}</span>
-                <span class="report__meta mono">
-                  λ {{ report.lam?.toFixed(3) ?? '—' }} · LTV {{ money(report.ltv_pred12) }}
+                <span class="report__name">
+                  {{ report.name }}
+                  <span class="report__ver mono">v{{ report.version_no }}</span>
+                  <span v-if="report.stale" class="report__stale">过期</span>
                 </span>
-                <span class="tag" :class="report.status === 'published' ? 'tag--ok' : 'tag--warn'">
-                  {{ REPORT_STATUS_LABELS[report.status] }}
+                <span class="report__meta mono">
+                  数据 v{{ report.source_data_seq }} · λ {{ report.lam?.toFixed(3) ?? '—' }} · LTV {{ money(report.ltv_pred12) }}
+                </span>
+                <span class="tag" :class="reviewTagClassFor(report.review_state, report.status)">
+                  {{ REVIEW_STATE_LABELS[report.review_state] ?? REPORT_STATUS_LABELS[report.status] }}
                 </span>
               </button>
             </li>
           </ul>
           <p v-if="auth.role === 'viewer'" class="receipt__note">
-            只读角色只能看到已发布报告；测算参数与敏感性表仅分析师/负责人可见。
+            只读角色可看已发布及被替代的历史版本（含当时导出）；草稿、测算参数与敏感性表仅分析师/负责人可见。
           </p>
         </section>
       </div>
@@ -204,7 +240,7 @@ import { useLtvStore } from '../stores/ltvStore'
 import { useCohortStore } from '../stores/cohortStore'
 import { useAuthStore } from '../stores/authStore'
 import { useLtvForm } from '../hooks/useLtvForm'
-import { REPORT_STATUS_LABELS } from '../constants/enums'
+import { REPORT_STATUS_LABELS, REVIEW_STATE_LABELS } from '../constants/enums'
 import { EMPTY_HINTS } from '../constants/messages'
 import { money } from '../utils/format'
 
@@ -218,6 +254,34 @@ const results = computed(() => ltv.results)
 const snapshot = computed(() => ltv.current?.results?.snapshot_month ?? cohorts.snapshot ?? '2026-11')
 const canRun = computed(() => auth.can('ltv:run'))
 const canPublish = computed(() => auth.can('ltv:publish'))
+const canRecompute = computed(() => auth.can('ltv:recompute'))
+
+const stampLabel = computed(() => {
+  if (!ltv.current) return '待复核'
+  if (ltv.current.status === 'superseded') return '已替代'
+  if (ltv.isStale) return '已过期'
+  return ltv.isPublished ? '已发布' : '待复核'
+})
+const stampTone = computed(() => (ltv.isPublished && !ltv.isStale ? 'ok' : 'warn'))
+
+const reviewTagClass = computed(() => {
+  const state = ltv.reviewState
+  if (state === 'published') return 'tag--ok'
+  if (state === 'superseded') return 'tag--censor'
+  return 'tag--warn'
+})
+
+const publishTitle = computed(() => {
+  if (!canPublish.value) return '仅增长负责人可发布'
+  if (ltv.isStale.value) return '报告依据的数据已更新，请先重算再发布'
+  return '发布后渠道页与导出口径冻结在此版本'
+})
+
+function reviewTagClassFor(state: string, status: string): string {
+  if (state === 'published') return 'tag--ok'
+  if (state === 'superseded' || status === 'archived') return 'tag--censor'
+  return 'tag--warn'
+}
 
 async function loadReports() {
   await ltv.loadReports()
@@ -235,6 +299,14 @@ async function run() {
 async function publish() {
   try {
     await ltv.publish()
+  } catch {
+    /* store.error */
+  }
+}
+
+async function recompute() {
+  try {
+    await ltv.recompute()
   } catch {
     /* store.error */
   }
@@ -290,8 +362,20 @@ onMounted(loadReports)
 .report:hover { background: var(--cream-3); }
 .report.is-active { border-color: var(--coffee-3); background: var(--cream-3); }
 .report__name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report__ver { font-size: 10px; color: var(--coffee-3); margin-left: 6px; }
+.report__stale {
+  font-size: 9px; color: var(--brick); border: 1px solid var(--brick);
+  padding: 0 4px; margin-left: 6px; border-radius: 2px;
+}
 .report__meta { font-size: 10px; color: var(--coffee-3); }
 .is-slow { color: var(--brick); }
+
+.stale-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  border: 1px solid var(--brick); background: var(--brick-soft); padding: 12px 16px;
+}
+.stale-banner__text { margin: 6px 0 0; font-size: 11.5px; color: var(--coffee-2); line-height: 1.6; }
+.receipt__seq { font-size: 10px; color: var(--coffee-3); font-weight: 400; }
 
 @media (max-width: 1199px) {
   .layout { grid-template-columns: 1fr; }

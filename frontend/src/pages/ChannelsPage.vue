@@ -30,10 +30,18 @@
           <span class="tag" :class="data.source === 'published' ? 'tag--ok' : 'tag--warn'">
             {{ data.source === 'published' ? '已发布口径' : '现场测算' }}
           </span>
-          <span class="source__name serif">{{ data.report_name }}</span>
+          <span v-if="data.stale" class="tag tag--warn" data-test="channel-stale">
+            数据过期 · 待新版本接管
+          </span>
+          <span class="source__name serif">
+            {{ data.report_name }}
+            <template v-if="data.report_version_no"> · v{{ data.report_version_no }}</template>
+          </span>
           <span class="source__meta mono" v-if="data.published_at">发布 {{ relativeDate(data.published_at) }}</span>
         </div>
         <div class="source__right mono">
+          <span>报告数据 v{{ data.source_data_seq }} / 当前 v{{ data.current_data_seq }}</span>
+          <span>·</span>
           <span>λ {{ data.fit.lambda.toFixed(3) }}</span>
           <span>·</span>
           <span>R² {{ data.fit.r2.toFixed(2) }}</span>
@@ -41,6 +49,11 @@
           <span>毛利率 {{ (data.margin_rate * 100).toFixed(0) }}%</span>
         </div>
       </section>
+
+      <div v-if="data.stale" class="scope scope--stale">
+        当前渠道排行与导出仍冻结在已发布的旧口径（数据 v{{ data.source_data_seq }}）；
+        源数据已更新到 v{{ data.current_data_seq }}，请在 LTV 测算页重算并发布新版本后切换。
+      </div>
 
       <div v-if="data.scope.scoped" class="scope">
         只读账号只看到自己渠道：<strong>{{ scopeLabel }}</strong>
@@ -219,6 +232,7 @@ onMounted(load)
   margin-top: 12px; border: 1px dashed var(--coffee-3); background: var(--cream-2);
   padding: 9px 12px; font-size: 12px; color: var(--coffee-2);
 }
+.scope--stale { border-color: var(--brick); background: var(--brick-soft); }
 
 .layout {
   display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr);

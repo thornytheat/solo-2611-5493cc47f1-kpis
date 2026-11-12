@@ -28,6 +28,7 @@ export function createHttp(baseURL = '/api'): AxiosInstance {
         detail: data.detail,
         traceId: data.trace_id ?? error.response?.headers?.['x-trace-id'] ?? null,
         status,
+        extra: data.extra,
       }
       if (status === 401) {
         localStorage.removeItem(TOKEN_KEY)

@@ -42,6 +42,7 @@ export const ReportStatus = {
   Draft: 'draft',
   Published: 'published',
   Archived: 'archived',
+  Superseded: 'superseded',
 } as const
 export type ReportStatusCode = (typeof ReportStatus)[keyof typeof ReportStatus]
 
@@ -49,6 +50,41 @@ export const REPORT_STATUS_LABELS: Record<string, string> = {
   draft: '待复核',
   published: '已发布',
   archived: '已归档',
+  superseded: '已被替代',
+}
+
+/** 复核状态：发布进度 × 数据新旧（与后端 ReviewState 一一对应）。 */
+export const ReviewState = {
+  Draft: 'draft',
+  Published: 'published',
+  Superseded: 'superseded',
+  StaleDraft: 'stale_draft',
+  StalePublished: 'stale_published',
+} as const
+export type ReviewStateCode = (typeof ReviewState)[keyof typeof ReviewState]
+
+export const REVIEW_STATE_LABELS: Record<string, string> = {
+  draft: '待复核',
+  published: '已发布 · 口径冻结',
+  superseded: '已被新版本替代',
+  stale_draft: '数据已更新 · 待重算',
+  stale_published: '已发布但数据过期 · 待新版本接管',
+  live: '现场测算（未发布）',
+}
+
+export const ImportBatchStatus = {
+  Validated: 'validated',
+  Applied: 'applied',
+  Failed: 'failed',
+  Rejected: 'rejected',
+} as const
+export type ImportBatchStatusCode = (typeof ImportBatchStatus)[keyof typeof ImportBatchStatus]
+
+export const IMPORT_BATCH_STATUS_LABELS: Record<string, string> = {
+  validated: '校验通过（未落库）',
+  applied: '已切换',
+  failed: '校验失败（未改动）',
+  rejected: '拒绝（重复/晚到）',
 }
 
 export const JobStatus = {

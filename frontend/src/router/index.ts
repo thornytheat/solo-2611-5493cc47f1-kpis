@@ -18,6 +18,12 @@ const router = createRouter({
       meta: { title: '留存矩阵' },
     },
     {
+      path: '/imports',
+      name: 'imports',
+      component: () => import('../pages/ImportPage.vue'),
+      meta: { title: '订单导入' },
+    },
+    {
       path: '/cohorts/:month',
       name: 'cohort-detail',
       component: () => import('../pages/CohortDetailPage.vue'),

@@ -37,6 +37,9 @@ export interface MatrixStats {
 
 export interface MatrixPayload {
   snapshot_month: string
+  data_version_seq?: number
+  data_version_id?: string
+  data_version_label?: string
   months: number
   cohorts: MatrixRow[]
   columns: MatrixColumn[]
@@ -179,6 +182,14 @@ export interface LtvReport {
   published_at: string | null
   params: Record<string, any>
   results: LtvResults
+  review_state: string
+  stale: boolean
+  source_data_seq: number
+  current_data_seq: number
+  lineage_id: string
+  version_no: number
+  supersedes_id: string | null
+  lineage_versions?: LtvReportSummary[]
 }
 
 export interface LtvReportSummary {
@@ -191,6 +202,90 @@ export interface LtvReportSummary {
   ltv_pred12: number | null
   lam: number | null
   r2: number | null
+  review_state: string
+  stale: boolean
+  source_data_seq: number
+  current_data_seq: number
+  lineage_id: string
+  version_no: number
+  supersedes_id: string | null
+}
+
+export interface ImportOrderRow {
+  order_no: string
+  member_code: string
+  cohort_month: string
+  order_month: string
+  channel: string
+  amount: number
+  store_code?: string
+  is_first_order?: boolean
+  ordered_at?: string | null
+}
+
+export interface ImportPayload {
+  batch_no: string
+  source_seq?: number | null
+  dry_run: boolean
+  note?: string
+  rows: ImportOrderRow[]
+}
+
+export interface ImportErrorItem {
+  index: number
+  order_no: string
+  field: string
+  message: string
+}
+
+export interface ImportResult {
+  batch_id: string
+  batch_no: string
+  status: string
+  dry_run: boolean
+  batch_seq: number | null
+  data_version_id: string | null
+  row_count: number
+  inserted: number
+  updated: number
+  unchanged: number
+  rejected_count: number
+  errors: ImportErrorItem[] | Record<string, unknown>[]
+  would_activate_seq?: number | null
+  matrix?: Record<string, unknown> | null
+}
+
+export interface ImportBatch {
+  id: string
+  batch_no: string
+  status: string
+  batch_seq: number | null
+  source_seq: number | null
+  dry_run: boolean
+  row_count: number
+  inserted_count: number
+  updated_count: number
+  unchanged_count: number
+  rejected_count: number
+  errors: Record<string, unknown>[]
+  data_version_id: string | null
+  applied_at: string | null
+  created_at: string | null
+}
+
+export interface DataVersion {
+  id: string
+  seq: number
+  label: string
+  snapshot_month: string
+  orders_count: number
+  members_count: number
+  cohorts_count: number
+  cells_count: number
+  change_note: string
+  source_batch_id: string | null
+  activated_at: string | null
+  created_at: string | null
 }
 
 export interface SensitivityPayload {
@@ -209,6 +304,12 @@ export interface ChannelComparison {
   report_id: string | null
   report_name: string
   published_at: string | null
+  report_version_no: number | null
+  lineage_id: string | null
+  source_data_seq: number
+  current_data_seq: number
+  stale: boolean
+  review_state: string
   snapshot_month: string
   fit: FitInfo
   ltv_hist: number

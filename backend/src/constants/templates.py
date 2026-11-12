@@ -6,8 +6,12 @@ ACTION_LOGIN_FAILED = "auth.login_failed"
 ACTION_REBUILD = "matrix.rebuild"
 ACTION_LTV_RUN = "ltv.run"
 ACTION_LTV_PUBLISH = "ltv.publish"
+ACTION_LTV_RECOMPUTE = "ltv.recompute"
 ACTION_EXPORT = "export.download"
 ACTION_FORBIDDEN = "auth.forbidden"
+ACTION_IMPORT_VALIDATE = "orders.import_validate"
+ACTION_IMPORT_APPLY = "orders.import_apply"
+ACTION_IMPORT_REJECT = "orders.import_reject"
 
 METRIC_NOTES: dict[str, str] = {
     "matrix": "按首单月分群；Mn = 第 n 个月有过 ≥1 单的会员数 / 群规模；观察期未到的格子标右删失，不参与拟合。",

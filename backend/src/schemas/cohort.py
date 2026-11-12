@@ -61,6 +61,9 @@ class MatrixStatsOut(BaseModel):
 
 class MatrixOut(BaseModel):
     snapshot_month: str
+    data_version_seq: int | None = None
+    data_version_id: str | None = None
+    data_version_label: str | None = None
     months: int
     cohorts: list[MatrixRowOut]
     columns: list[MatrixColumnOut]

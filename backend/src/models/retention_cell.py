@@ -29,6 +29,13 @@ class RetentionCell(Base):
         UUID(as_uuid=True), ForeignKey(f"{settings.db_schema}.cohorts.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
+    # 矩阵随数据版本一起切换：格子挂在当前版本上，切换事务内整体重建
+    version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{settings.db_schema}.data_versions.id"),
+        nullable=True,
+        index=True,
+    )
     month_index: Mapped[int] = mapped_column(Integer, nullable=False)
     channel: Mapped[str] = mapped_column(String(20), nullable=False, default="all")
     active_members: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

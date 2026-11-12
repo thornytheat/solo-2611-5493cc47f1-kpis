@@ -2,24 +2,36 @@
 
 viewer 带 channel_scope 时只返回自己渠道 + 全渠道汇总行，
 这样「门店只读自己渠道」是真的后端过滤，不是前端隐藏。
+
+版本口径：已发布报告是结果快照，源数据更新也不回写它 —— 渠道页继续展示冻结口径，
+同时回传 stale 标记提示「依据数据已过期，等待新版本发布后一起切换」；
+没有已发布报告时才现场按当前数据版本测算。
 """
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
 from src.models.user import User
-from src.services import ltv_service
+from src.services import ltv_service, version_service
 
 
 def comparison(db: Session, user: User) -> dict:
+    current_seq = version_service.current_seq(db)
     report = ltv_service.latest_published(db)
     if report is not None:
         results = report.results
+        stale = int(report.source_data_seq) < current_seq
         meta = {
             "source": "published",
             "report_id": str(report.id),
             "report_name": report.name,
             "published_at": report.published_at.isoformat() if report.published_at else None,
+            "report_version_no": report.version_no,
+            "lineage_id": str(report.lineage_id),
+            "source_data_seq": report.source_data_seq,
+            "current_data_seq": current_seq,
+            "stale": stale,
+            "review_state": ltv_service.review_state(report, current_seq),
         }
     else:
         results = ltv_service.compute_results(db)
@@ -28,6 +40,12 @@ def comparison(db: Session, user: User) -> dict:
             "report_id": None,
             "report_name": "现场测算（尚未发布报告）",
             "published_at": None,
+            "report_version_no": None,
+            "lineage_id": None,
+            "source_data_seq": current_seq,
+            "current_data_seq": current_seq,
+            "stale": False,
+            "review_state": "live",
         }
 
     rows = list(results["channels"])

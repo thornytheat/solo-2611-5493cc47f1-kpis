@@ -2,6 +2,8 @@
 from src.models.audit_log import AuditLog
 from src.models.base import Base, TimestampMixin, new_uuid, utcnow
 from src.models.cohort import Cohort
+from src.models.data_version import DataVersion
+from src.models.import_batch import ImportBatch
 from src.models.ltv_report import LtvReport
 from src.models.member_order import MemberOrder
 from src.models.retention_cell import RetentionCell
@@ -11,6 +13,8 @@ __all__ = [
     "AuditLog",
     "Base",
     "Cohort",
+    "DataVersion",
+    "ImportBatch",
     "LtvReport",
     "MemberOrder",
     "RetentionCell",

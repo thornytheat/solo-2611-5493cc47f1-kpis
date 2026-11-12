@@ -13,6 +13,7 @@ from src.constants.enums import COHORT_CHANNELS, Channel
 from src.models.cohort import Cohort
 from src.models.member_order import MemberOrder
 from src.models.retention_cell import RetentionCell
+from src.services import version_service
 from src.utils.aggregates import AMOUNT_BUCKETS, bucket_amounts
 from src.utils.errors import AppError, not_found
 from src.utils.months import observed_months
@@ -22,6 +23,7 @@ def _rate_str(rate: float | None) -> str:
 
 
 def list_cohorts(db: Session) -> list[dict]:
+    version = version_service.current_version(db)
     cohorts = db.execute(select(Cohort).order_by(Cohort.month)).scalars().all()
     revenue_rows = db.execute(
         select(
@@ -29,7 +31,10 @@ def list_cohorts(db: Session) -> list[dict]:
             func.sum(RetentionCell.revenue),
             func.sum(RetentionCell.active_members),
         )
-        .where(RetentionCell.channel == Channel.ALL.value)
+        .where(
+            RetentionCell.channel == Channel.ALL.value,
+            RetentionCell.version_id == version.id if version else False,
+        )
         .group_by(RetentionCell.cohort_id)
     ).all()
     agg = {row[0]: (float(row[1] or 0), int(row[2] or 0)) for row in revenue_rows}
@@ -55,12 +60,18 @@ def list_cohorts(db: Session) -> list[dict]:
 
 
 def build_matrix(db: Session) -> dict:
+    version = version_service.current_version(db)
+    if version is None:
+        raise AppError(codes.MATRIX_EMPTY)
     cohorts = db.execute(select(Cohort).order_by(Cohort.month)).scalars().all()
     if not cohorts:
         raise AppError(codes.MATRIX_EMPTY)
     cells = db.execute(
         select(RetentionCell)
-        .where(RetentionCell.channel == Channel.ALL.value)
+        .where(
+            RetentionCell.channel == Channel.ALL.value,
+            RetentionCell.version_id == version.id,
+        )
         .order_by(RetentionCell.month_index)
     ).scalars().all()
     if not cells:
@@ -132,16 +143,28 @@ def build_matrix(db: Session) -> dict:
         db.execute(
             select(func.count())
             .select_from(RetentionCell)
-            .where(RetentionCell.low_sample.is_(True), RetentionCell.right_censored.is_(False))
+            .where(
+                RetentionCell.low_sample.is_(True),
+                RetentionCell.right_censored.is_(False),
+                RetentionCell.version_id == version.id,
+            )
         ).scalar_one()
     )
-    order_count = db.execute(select(func.count()).select_from(MemberOrder)).scalar_one()
+    order_count = db.execute(
+        select(func.count())
+        .select_from(MemberOrder)
+        .where(MemberOrder.version_id == version.id)
+    ).scalar_one()
     member_count = db.execute(
         select(func.count(func.distinct(MemberOrder.member_code)))
+        .where(MemberOrder.version_id == version.id)
     ).scalar_one()
 
     return {
         "snapshot_month": settings.snapshot_month,
+        "data_version_seq": version.seq,
+        "data_version_id": str(version.id),
+        "data_version_label": version.label,
         "months": months,
         "cohorts": rows,
         "columns": columns,
@@ -165,6 +188,9 @@ def build_matrix(db: Session) -> dict:
 
 
 def build_detail(db: Session, month: str) -> dict:
+    version = version_service.current_version(db)
+    if version is None:
+        raise AppError(codes.MATRIX_EMPTY)
     cohort = db.execute(select(Cohort).where(Cohort.month == month)).scalar_one_or_none()
     if cohort is None:
         raise not_found("同期群", month)
@@ -172,7 +198,10 @@ def build_detail(db: Session, month: str) -> dict:
 
     cells = db.execute(
         select(RetentionCell)
-        .where(RetentionCell.cohort_id == cohort.id)
+        .where(
+            RetentionCell.cohort_id == cohort.id,
+            RetentionCell.version_id == version.id,
+        )
         .order_by(RetentionCell.month_index)
     ).scalars().all()
     all_cells = sorted(
@@ -195,9 +224,12 @@ def build_detail(db: Session, month: str) -> dict:
             }
         )
 
-    # 订单金额分布（该群全部订单）
+    # 订单金额分布（该群当前版本全部订单）
     amounts = db.execute(
-        select(MemberOrder.amount).where(MemberOrder.cohort_month == cohort.month)
+        select(MemberOrder.amount).where(
+            MemberOrder.cohort_month == cohort.month,
+            MemberOrder.version_id == version.id,
+        )
     ).scalars().all()
     amount_distribution = bucket_amounts(amounts)
 
@@ -239,6 +271,7 @@ def build_detail(db: Session, month: str) -> dict:
         "size": cohort.size,
         "observed_months": obs,
         "snapshot_month": settings.snapshot_month,
+        "data_version_seq": version.seq,
         "low_sample": cohort.size < settings.low_sample_threshold,
         "note": cohort.note,
         "curve": curve,

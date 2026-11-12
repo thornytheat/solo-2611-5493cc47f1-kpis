@@ -60,7 +60,10 @@
         <div class="band__cell band__cell--note">
           <span class="label">快照口径</span>
           <span class="band__value mono">{{ matrix.snapshot_month }}-30</span>
-          <span class="band__sub mono">M0..M{{ matrix.months - 1 }}</span>
+          <span class="band__sub mono">
+            M0..M{{ matrix.months - 1 }}
+            <template v-if="matrix.data_version_seq"> · 数据 v{{ matrix.data_version_seq }}</template>
+          </span>
         </div>
       </section>
 

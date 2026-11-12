@@ -4,6 +4,12 @@ export interface ApiError {
   detail?: string
   traceId?: string | null
   status?: number
+  extra?: {
+    batch_id?: string
+    errors?: Array<{ index: number; order_no: string; field: string; message: string }>
+    retry_after?: number
+    [key: string]: unknown
+  }
 }
 
 export interface JobStatusPayload {

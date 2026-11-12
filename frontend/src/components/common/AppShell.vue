@@ -24,6 +24,10 @@
           <span class="navlink__num">壹</span>
           <span class="navlink__label">留存矩阵</span>
         </RouterLink>
+        <RouterLink to="/imports" class="navlink" active-class="is-active" data-test="nav-imports">
+          <span class="navlink__num">壹＋</span>
+          <span class="navlink__label">订单导入</span>
+        </RouterLink>
         <RouterLink
           v-if="firstCohort"
           :to="`/cohorts/${firstCohort}`"

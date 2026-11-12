@@ -11,6 +11,7 @@ from fastapi import Depends, Request
 from src.constants import error_codes as codes
 from src.constants.limits import (
     RATE_LIMIT_DEFAULT_PER_MINUTE,
+    RATE_LIMIT_IMPORT_PER_MINUTE,
     RATE_LIMIT_LTV_PER_MINUTE,
     RATE_LIMIT_REBUILD_PER_MINUTE,
     WINDOW_SECONDS,
@@ -23,6 +24,7 @@ from src.utils.redis_client import get_redis
 _LIMITS = {
     "rebuild": RATE_LIMIT_REBUILD_PER_MINUTE,
     "ltv": RATE_LIMIT_LTV_PER_MINUTE,
+    "import": RATE_LIMIT_IMPORT_PER_MINUTE,
     "default": RATE_LIMIT_DEFAULT_PER_MINUTE,
 }
 

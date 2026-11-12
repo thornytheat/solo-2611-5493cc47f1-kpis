@@ -1,5 +1,13 @@
 import { defineStore } from 'pinia'
-import { fetchReport, fetchReports, fetchSensitivity, publishReport, runReport, type RunPayload } from '../api/ltv'
+import {
+  fetchReport,
+  fetchReports,
+  fetchSensitivity,
+  publishReport,
+  recomputeReport,
+  runReport,
+  type RunPayload,
+} from '../api/ltv'
 import type { LtvReport, LtvReportSummary, SensitivityPayload } from '../types/domain'
 
 interface LtvState {
@@ -9,6 +17,7 @@ interface LtvState {
   loading: boolean
   running: boolean
   publishing: boolean
+  recomputing: boolean
   error: string
 }
 
@@ -20,12 +29,15 @@ export const useLtvStore = defineStore('ltv', {
     loading: false,
     running: false,
     publishing: false,
+    recomputing: false,
     error: '',
   }),
   getters: {
     results: (state) => state.current?.results ?? null,
     fit: (state) => state.current?.results?.fit ?? null,
     isPublished: (state): boolean => state.current?.status === 'published',
+    isStale: (state): boolean => state.current?.stale ?? false,
+    reviewState: (state): string => state.current?.review_state ?? 'draft',
   },
   actions: {
     async loadReports() {
@@ -87,6 +99,23 @@ export const useLtvStore = defineStore('ltv', {
         throw error
       } finally {
         this.publishing = false
+      }
+    },
+    async recompute() {
+      if (!this.current) return
+      this.recomputing = true
+      this.error = ''
+      try {
+        const report = await recomputeReport(this.current.id)
+        this.current = report
+        await this.loadReports()
+        await this.open(report.id)
+        return report
+      } catch (error) {
+        this.error = (error as { message?: string }).message ?? '重算失败'
+        throw error
+      } finally {
+        this.recomputing = false
       }
     },
   },

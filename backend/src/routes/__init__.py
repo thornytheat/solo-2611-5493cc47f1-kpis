@@ -8,10 +8,12 @@ from src.routes import cohort as cohort_routes
 from src.routes import export as export_routes
 from src.routes import health as health_routes
 from src.routes import ltv as ltv_routes
+from src.routes import orders as orders_routes
 
 api_router = APIRouter()
 api_router.include_router(health_routes.router)
 api_router.include_router(auth_routes.router)
+api_router.include_router(orders_routes.router)
 api_router.include_router(cohort_routes.router)
 api_router.include_router(ltv_routes.router)
 api_router.include_router(channel_routes.router)

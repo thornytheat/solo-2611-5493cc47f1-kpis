@@ -32,6 +32,11 @@ export async function publishReport(reportId: string): Promise<LtvReport> {
   return data
 }
 
+export async function recomputeReport(reportId: string): Promise<LtvReport> {
+  const { data } = await http.post<LtvReport>(`/ltv/reports/${reportId}/recompute`)
+  return data
+}
+
 export async function fetchSensitivity(reportId: string, delta = 0.03): Promise<SensitivityPayload> {
   const { data } = await http.get<SensitivityPayload>(`/ltv/reports/${reportId}/sensitivity`, {
     params: { delta },

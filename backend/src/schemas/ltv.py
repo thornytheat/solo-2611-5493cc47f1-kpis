@@ -55,6 +55,14 @@ class LtvReportOut(BaseModel):
     published_at: str | None = None
     params: dict[str, Any]
     results: dict[str, Any]
+    review_state: str
+    stale: bool
+    source_data_seq: int
+    current_data_seq: int
+    lineage_id: str
+    version_no: int
+    supersedes_id: str | None = None
+    lineage_versions: list[dict[str, Any]] = []
 
 
 class LtvReportSummaryOut(BaseModel):
@@ -67,6 +75,13 @@ class LtvReportSummaryOut(BaseModel):
     ltv_pred12: int | None = None
     lam: float | None = None
     r2: float | None = None
+    review_state: str
+    stale: bool
+    source_data_seq: int
+    current_data_seq: int
+    lineage_id: str
+    version_no: int
+    supersedes_id: str | None = None
 
 
 class SensitivityOut(BaseModel):

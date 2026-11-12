@@ -42,12 +42,22 @@ def channels_csv(results: dict) -> tuple[str, int]:
     return buffer.getvalue(), len(results["channels"])
 
 
-def report_md(results: dict, report_name: str, published_at: str | None = None) -> str:
+def report_md(results: dict, report_name: str, published_at: str | None = None,
+              report_meta: dict | None = None) -> str:
     fit = results["fit"]
     params = results["params"]
+    report_meta = report_meta or {}
+    version_label = report_meta.get("version_label", "")
+    source_seq = report_meta.get("source_data_seq")
     lines = [
         f"# {report_name}",
         "",
+    ]
+    if version_label:
+        lines.append(f"- 报告版本：{version_label}（旧版本导出留痕，口径冻结在发布时刻）")
+    if source_seq is not None:
+        lines.append(f"- 源数据版本：v{source_seq}")
+    lines += [
         f"- 快照月：{results['snapshot_month']}（M0..M12），预测窗 {params['forecast_months']} 个月",
         f"- 同期群：{results['totals']['cohorts']} 个，会员 {results['totals']['members']:,} 人，"
         f"有效格 {results['totals']['observed_cells']} / 右删失 {results['totals']['censored_cells']}",

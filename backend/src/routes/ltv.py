@@ -51,6 +51,17 @@ def publish_report(
     return ltv_controller.publish(db, report_id, user, request)
 
 
+@router.post("/reports/{report_id}/recompute")
+def recompute_report(
+    report_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("ltv:recompute")),
+    _: None = rate_limit("ltv"),
+) -> dict:
+    return ltv_controller.recompute(db, report_id, user, request)
+
+
 @router.get("/reports/{report_id}/sensitivity", response_model=SensitivityOut)
 def report_sensitivity(
     report_id: str,
